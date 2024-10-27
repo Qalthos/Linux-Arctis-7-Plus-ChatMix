@@ -14,8 +14,8 @@ fi
 
 CONFIG_DIR="system-config/"
 SYSTEMD_CONFIG="arctis7pcm.service"
-UDEV_CONFIG="91-steelseries-arctis-7p.rules"
-SCRIPT="Arctis_7_Plus_ChatMix.py"
+UDEV_CONFIG="91-steelseries-arctis-nova-7.rules"
+SCRIPT="Arctis_Nova_7_ChatMix.py"
 
 SCRIPT_DIR="$HOME/.local/bin/"
 SYSTEMD_DIR="$HOME/.config/systemd/user/"
