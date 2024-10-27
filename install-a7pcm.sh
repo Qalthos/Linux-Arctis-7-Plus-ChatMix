@@ -32,12 +32,12 @@ function cleanup {
 }
 
 if [[ -v UNINSTALL ]]; then
-    echo "Uninstalling Arctis 7+ ChatMix."
+    echo "Uninstalling Arctis Nova 7 ChatMix."
     echo "You may need to provide your sudo password for removing udev rule."
     cleanup ; exit 0
 fi
 
-echo "Installing Arctis 7+ ChatMix."
+echo "Installing Arctis Nova 7 ChatMix."
 echo "Installing script to ${SCRIPT_DIR}${SCRIPT}."
 if [[ ! -d "$SCRIPT_DIR" ]]; then
     mkdir -vp $SCRIPT_DIR || \

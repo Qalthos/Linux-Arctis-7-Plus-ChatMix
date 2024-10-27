@@ -21,12 +21,12 @@ use and where.
 
 **Typical use case:** "Chat" for voicechat in games and VOIP/comms software, and "Game" for system / music etc.
 
-On the Arctis 7+ model, this two-device differentiation no longer exists, and the host OS will only recognize a single device.
+On the Arctis Nova 7 model, this two-device differentiation no longer exists, and the host OS will only recognize a single device.
 If the user wishes to utilize the chatmix modulation knob, they *must* install the SteelSeries proprietary GG software. This
 software does not currently support Linux.
 
-This script provides a basic workaround for this problem for Linux users. It creates a Virtual Audio Cable (VAC) pair called "Arctis 7+ Chat"
-and "Arctis 7+ Game" respectively, which the user can then assign accordingly as they would have done with an older Arctis model. 
+This script provides a basic workaround for this problem for Linux users. It creates a Virtual Audio Cable (VAC) pair called "Arctis Nova 7 Chat"
+and "Arctis Nova 7 Game" respectively, which the user can then assign accordingly as they would have done with an older Arctis model. 
 The script listens to the headset's USB dongle signals and interprets them in a way that can be meaningfully converted
 to adjust the audio when the user moves the dial on the headset.
 
@@ -88,7 +88,7 @@ The headset sends three bytes, the second and third of which are the volume valu
 
 The volumes are processed by the service and passed to the audio system via `pactl`.
 
-The service will automatically set "Arctis 7+ Game" as the default device on startup.
+The service will automatically set "Arctis Nova 7 Game" as the default device on startup.
 
 
 
