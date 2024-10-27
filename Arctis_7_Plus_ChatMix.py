@@ -1,10 +1,10 @@
 """   Copyright (C) 2022  birdybirdonline & awth13 - see LICENSE.md
     @ https://github.com/birdybirdonline/Linux-Arctis-7-Plus-ChatMix
-    
+
     Contact via Github in the first instance
     https://github.com/birdybirdonline
     https://github.com/awth13
-    
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -23,8 +23,8 @@ import os
 import sys
 import signal
 import logging
-import traceback
 import re
+from typing import cast
 import usb.core
 
 
@@ -37,35 +37,38 @@ class Arctis7PlusChatMix:
         self.log = self._init_log()
         self.log.info("Initializing ac7pcm...")
 
-        # identify the arctis 7+ device
+        # identify the arctis Nova 7 device
         try:
-            self.dev=usb.core.find(idVendor=0x1038, idProduct=0x220e)
-        except Exception as e:
-            self.log.error("""Failed to identify the Arctis 7+ device.
+            dev=usb.core.find(idVendor=0x1038, idProduct=0x2202)
+        except Exception:
+            dev = None
+
+        if dev is None:
+            self.log.error("""Failed to identify the Arctis Nova 7 device.
             Please ensure it is connected.\n
-            Please note: This program only supports the '7+' model.""")
+            Please note: This program only supports the 'Nova 7' model.""")
             self.die_gracefully(trigger ="Couldn't find arctis7 model")
+        self.dev = cast(usb.core.Device, dev)
 
         # select its interface and USB endpoint, and capture the endpoint address
         try:
-            # interface index 7 of the Arctis 7+ is the USB HID for the ChatMix dial;
+            # interface index 7 of the Arctis Nova 7 is the USB HID for the ChatMix dial;
             # its actual interface number on the device itself is 5.
             self.interface = self.dev[0].interfaces()[7]
-            self.interface_num = self.interface.bInterfaceNumber
+            self.interface_num: int = self.interface.bInterfaceNumber  # type: ignore[annotation-unchecked]
             self.endpoint = self.interface.endpoints()[0]
-            self.addr = self.endpoint.bEndpointAddress
+            self.addr: str = self.endpoint.bEndpointAddress  # type: ignore[annotation-unchecked]
 
-        except Exception as e:
-            self.log.error("""Failure to identify relevant 
+        except Exception:
+            self.log.error("""Failure to identify relevant
             USB device's interface or endpoint. Shutting down...""")
-            self.die_gracefully(exc=True, trigger ="identification of USB endpoint")
+            self.die_gracefully(sink_creation_fail=True, trigger="identification of USB endpoint")
 
         # detach if the device is active
         if self.dev.is_kernel_driver_active(self.interface_num):
             self.dev.detach_kernel_driver(self.interface_num)
 
         self.VAC = self._init_VAC()
-
 
     def _init_log(self):
         log = logging.getLogger(__name__)
@@ -90,7 +93,7 @@ class Arctis7PlusChatMix:
             pactl_short_sinks = os.popen("pactl list short sinks").readlines()
             # grab any elements from list of pactl sinks that are Arctis 7
             arctis = re.compile('.*[aA]rctis.*7')
-            arctis_sink = list(filter(arctis.match, pactl_short_sinks))[0] 
+            arctis_sink = list(filter(arctis.match, pactl_short_sinks))[0]
 
             # split the arctis line on tabs (which form table given by 'pactl short sinks')
             tabs_pattern = re.compile(r'\t')
@@ -101,8 +104,8 @@ class Arctis7PlusChatMix:
             self.log.info(f"Arctis sink identified as {arctis_device}")
             default_sink = arctis_device
 
-        except Exception as e:
-            self.log.error("""Something wrong with Arctis definition 
+        except Exception:
+            self.log.error("""Something wrong with Arctis definition
             in pactl list short sinks regex matching.
             Likely no match found for device, check traceback.
             """, exc_info=True)
@@ -114,35 +117,35 @@ class Arctis7PlusChatMix:
             destroy_a7p_chat = os.system("pw-cli destroy Arctis_Chat 2>/dev/null")
             if destroy_a7p_game == 0 or destroy_a7p_chat == 0:
                 raise Exception
-        except Exception as e:
+        except Exception:
             self.log.info("""Attempted to destroy old VAC sinks at init but none existed""")
 
         # Instantiate our virtual sinks - Arctis_Chat and Arctis_Game
         try:
             self.log.info("Creating VACS...")
-            os.system("""pw-cli create-node adapter '{ 
-                factory.name=support.null-audio-sink 
-                node.name=Arctis_Game 
-                node.description="Arctis 7+ Game" 
-                media.class=Audio/Sink 
-                monitor.channel-volumes=true 
-                object.linger=true 
+            os.system("""pw-cli create-node adapter '{
+                factory.name=support.null-audio-sink
+                node.name=Arctis_Game
+                node.description="Arctis Nova 7 Game"
+                media.class=Audio/Sink
+                monitor.channel-volumes=true
+                object.linger=true
                 audio.position=[FL FR]
                 }' 1>/dev/null
             """)
 
-            os.system("""pw-cli create-node adapter '{ 
-                factory.name=support.null-audio-sink 
-                node.name=Arctis_Chat 
-                node.description="Arctis 7+ Chat" 
-                media.class=Audio/Sink 
-                monitor.channel-volumes=true 
-                object.linger=true 
+            os.system("""pw-cli create-node adapter '{
+                factory.name=support.null-audio-sink
+                node.name=Arctis_Chat
+                node.description="Arctis Nova 7 Chat"
+                media.class=Audio/Sink
+                monitor.channel-volumes=true
+                object.linger=true
                 audio.position=[FL FR]
                 }' 1>/dev/null
             """)
-        except Exception as E:
-            self.log.error("""Failure to create node adapter - 
+        except Exception:
+            self.log.error("""Failure to create node adapter -
             Arctis_Chat virtual device could not be created""", exc_info=True)
             self.die_gracefully(sink_creation_fail=True, trigger="VAC node adapter")
 
@@ -162,11 +165,11 @@ class Arctis7PlusChatMix:
             os.system(f'pw-link "Arctis_Chat:monitor_FR" '
             f'"{default_sink}:playback_FR" 1>/dev/null')
 
-        except Exception as e:
-            self.log.error("""Couldn't create the links to 
+        except Exception:
+            self.log.error("""Couldn't create the links to
             pipe LR from VAC to default device""", exc_info=True)
-            self.die_gracefully(sink_fail=True, trigger="LR links")
-        
+            self.die_gracefully(sink_creation_fail=True, trigger="LR links")
+
         # set the default sink to Arctis Game
         os.system('pactl set-default-sink Arctis_Game')
 
@@ -174,10 +177,10 @@ class Arctis7PlusChatMix:
         """Listen to the USB device for modulator knob's signal 
         and adjust volume accordingly
         """
-        
+
         self.log.info("Reading modulator USB input started")
         self.log.info("-"*45)
-        self.log.info("Arctis 7+ ChatMix Enabled!")
+        self.log.info("Arctis Nova 7 ChatMix Enabled!")
         self.log.info("-"*45)
         while True:
             try:
@@ -187,7 +190,7 @@ class Arctis7PlusChatMix:
                 read_input = self.dev.read(self.addr, 64)
                 default_device_volume = "{}%".format(read_input[1])
                 virtual_device_volume = "{}%".format(read_input[2])
-        
+
                 # os.system calls to issue the commands directly to pactl
                 os.system(f'pactl set-sink-volume Arctis_Game {default_device_volume}')
                 os.system(f'pactl set-sink-volume Arctis_Chat {virtual_device_volume}')
@@ -204,12 +207,12 @@ class Arctis7PlusChatMix:
         """Kill the process and remove the VACs
         on fatal exceptions or SIGTERM / SIGINT
         """
-        
+
         self.log.info('Cleanup on shutdown')
         os.system(f"pactl set-default-sink {self.system_default_sink}")
 
         # cleanup virtual sinks if they exist
-        if  sink_creation_fail == False:
+        if  sink_creation_fail is False:
             self.log.info("Destroying virtual sinks...")
             os.system("pw-cli destroy Arctis_Game 1>/dev/null")
             os.system("pw-cli destroy Arctis_Chat 1>/dev/null")
@@ -221,11 +224,16 @@ class Arctis7PlusChatMix:
             sys.exit(1)
         else:
             self.log.info("-"*45)
-            self.log.info("Artcis 7+ ChatMix shut down gracefully... Bye Bye!")
+            self.log.info("Artcis Nova 7 ChatMix shut down gracefully... Bye Bye!")
             self.log.info("-"*45)
             sys.exit(0)
 
-# init
+
 if __name__ == '__main__':
     a7pcm_service = Arctis7PlusChatMix()
-    a7pcm_service.start_modulator_signal()
+    try:
+        a7pcm_service.start_modulator_signal()
+    except KeyboardInterrupt:
+        a7pcm_service.die_gracefully(trigger="keyboard interrupt")
+    except Exception as exc:
+        a7pcm_service.die_gracefully(trigger=str(exc))
