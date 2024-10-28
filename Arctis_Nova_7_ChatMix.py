@@ -19,16 +19,23 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
     """
 
+from __future__ import annotations
 import os
 import sys
 import signal
 import logging
 import re
-from typing import cast
+from typing import TYPE_CHECKING, cast
+
 import usb.core
+
+if TYPE_CHECKING:
+    from typing import NoReturn
 
 
 class Arctis7PlusChatMix:
+    sinks_created = False
+
     def __init__(self):
 
         # set to receive signal from systemd for termination
@@ -62,7 +69,7 @@ class Arctis7PlusChatMix:
         except Exception:
             self.log.error("""Failure to identify relevant
             USB device's interface or endpoint. Shutting down...""")
-            self.die_gracefully(sink_creation_fail=True, trigger="identification of USB endpoint")
+            self.die_gracefully(trigger="identification of USB endpoint")
 
         # detach if the device is active
         if self.dev.is_kernel_driver_active(self.interface_num):
@@ -147,7 +154,8 @@ class Arctis7PlusChatMix:
         except Exception:
             self.log.error("""Failure to create node adapter -
             Arctis_Chat virtual device could not be created""", exc_info=True)
-            self.die_gracefully(sink_creation_fail=True, trigger="VAC node adapter")
+            self.die_gracefully(trigger="VAC node adapter")
+        self.sinks_created = True
 
         #route the virtual sink's L&R channels to the default system output's LR
         try:
@@ -168,21 +176,22 @@ class Arctis7PlusChatMix:
         except Exception:
             self.log.error("""Couldn't create the links to
             pipe LR from VAC to default device""", exc_info=True)
-            self.die_gracefully(sink_creation_fail=True, trigger="LR links")
+            self.die_gracefully(trigger="LR links")
 
         # set the default sink to Arctis Game
         os.system('pactl set-default-sink Arctis_Game')
 
-    def _del_VAC(self, sink_cleanup=True) -> None:
+    def _del_VAC(self) -> None:
         os.system(f"pactl set-default-sink {self.system_default_sink}")
 
-        if sink_cleanup:
+        if self.sinks_created:
             self.log.info("Destroying virtual sinks...")
             os.system("pw-cli destroy Arctis_Game 1>/dev/null")
             os.system("pw-cli destroy Arctis_Chat 1>/dev/null")
+            self.sinks_created = False
 
     def start_modulator_signal(self):
-        """Listen to the USB device for modulator knob's signal 
+        """Listen to the USB device for modulator knob's signal
         and adjust volume accordingly
         """
 
@@ -220,19 +229,20 @@ class Arctis7PlusChatMix:
                 pass
             except usb.core.USBError:
                 self.log.fatal("USB input/output error - likely disconnect")
+                self._del_VAC()
                 break
 
-    def __handle_sigterm(self, sig, frame):
+    def __handle_sigterm(self, sig, frame) -> NoReturn:
         self.die_gracefully()
 
-    def die_gracefully(self, sink_creation_fail=False, trigger=None):
+    def die_gracefully(self, trigger=None) -> NoReturn:
         """Kill the process and remove the VACs
         on fatal exceptions or SIGTERM / SIGINT
         """
 
         self.log.info('Cleanup on shutdown')
 
-        self._del_VAC(sink_cleanup=not sink_creation_fail)
+        self._del_VAC()
 
         if trigger is not None:
             self.log.info("-"*45)
@@ -246,7 +256,7 @@ class Arctis7PlusChatMix:
             sys.exit(0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     a7pcm_service = Arctis7PlusChatMix()
     try:
         a7pcm_service.start_modulator_signal()
