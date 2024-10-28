@@ -35,6 +35,9 @@ if TYPE_CHECKING:
 
 
 class Arctis7PlusChatMix:
+    arctis_device = ""
+    default_sink = ""
+
     def __init__(self) -> None:
 
         # set to receive signal from systemd for termination
@@ -176,14 +179,15 @@ class Arctis7PlusChatMix:
         os.system("pactl set-default-sink Arctis_Game")
 
     def _del_VAC(self) -> None:
-        os.system(f"pactl set-default-sink {self.default_sink}")
+        if self.default_sink:
+            os.system(f"pactl set-default-sink {self.default_sink}")
 
         self.log.info("Destroying virtual sinks...")
         rc = 0
         rc += os.system("pw-cli destroy Arctis_Game 1>/dev/null")
         rc += os.system("pw-cli destroy Arctis_Chat 1>/dev/null")
         if rc == 0:
-            self.log.info("""Attempted to destroy old VAC sinks at init but none existed""")
+            self.log.info("""Attempted to destroy old VAC sinks but none existed""")
 
     def start_modulator_signal(self) -> None:
         """Listen to the USB device for modulator knob's signal
@@ -208,11 +212,11 @@ class Arctis7PlusChatMix:
                     # os.system calls to issue the commands directly to pactl
                     os.system(f"pactl set-sink-volume Arctis_Game {default_device_volume}")
                     os.system(f"pactl set-sink-volume Arctis_Chat {virtual_device_volume}")
-                # We have some options here, but 187 seems reasonable
-                elif read_input[0] == 187:
+                # We have some options here, but 185 is emitted on connect as well
+                elif read_input[0] == 185:
                     if read_input[1] == 3:
                         self._init_VAC()
-                    elif read_input[1] == 0:
+                    elif read_input[1] == 2:
                         self._del_VAC()
                     else:
                         self.log.warning(f"Unknown message value {read_input[1]}")
