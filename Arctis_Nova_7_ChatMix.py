@@ -1,30 +1,31 @@
-"""   Copyright (C) 2022  birdybirdonline & awth13 - see LICENSE.md
-    @ https://github.com/birdybirdonline/Linux-Arctis-7-Plus-ChatMix
+"""Copyright (C) 2022  birdybirdonline & awth13 - see LICENSE.md
+@ https://github.com/birdybirdonline/Linux-Arctis-7-Plus-ChatMix
 
-    Contact via Github in the first instance
-    https://github.com/birdybirdonline
-    https://github.com/awth13
+Contact via Github in the first instance
+https://github.com/birdybirdonline
+https://github.com/awth13
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-    """
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
 
 from __future__ import annotations
-import os
-import sys
-import signal
+
 import logging
+import os
 import re
+import signal
+import sys
 from typing import TYPE_CHECKING, cast
 
 import usb.core
@@ -34,9 +35,7 @@ if TYPE_CHECKING:
 
 
 class Arctis7PlusChatMix:
-    sinks_created = False
-
-    def __init__(self):
+    def __init__(self) -> None:
 
         # set to receive signal from systemd for termination
         signal.signal(signal.SIGTERM, self.__handle_sigterm)
@@ -75,41 +74,36 @@ class Arctis7PlusChatMix:
         if self.dev.is_kernel_driver_active(self.interface_num):
             self.dev.detach_kernel_driver(self.interface_num)
 
-        self.VAC = self._init_VAC()
+        self.default_sink = self.identify_default_device()
+        self._del_VAC()
+        self.arctis_device = self.identify_arctis_device()
+        self._init_VAC()
 
-    def _init_log(self):
+    def _init_log(self) -> logging.Logger:
         log = logging.getLogger(__name__)
         log.setLevel(logging.DEBUG)
         stdout_handler = logging.StreamHandler()
         stdout_handler.setLevel(logging.DEBUG)
-        stdout_handler.setFormatter(logging.Formatter('%(levelname)8s | %(message)s'))
-        log.addHandler(stdout_handler)    
+        stdout_handler.setFormatter(logging.Formatter("%(levelname)8s | %(message)s"))
+        log.addHandler(stdout_handler)
         return (log)
 
-    def _init_VAC(self):
-        """Get name of default sink, establish virtual sink
-        and pipe its output to the default sink
-        """
-
-        # get the default sink id from pactl
-        self.system_default_sink = os.popen("pactl get-default-sink").read().strip()
-        self.log.info(f"default sink identified as {self.system_default_sink}")
-
+    def identify_arctis_device(self) -> str:
         # attempt to identify an Arctis sink via pactl
         try:
             pactl_short_sinks = os.popen("pactl list short sinks").readlines()
             # grab any elements from list of pactl sinks that are Arctis 7
-            arctis = re.compile('.*[aA]rctis.*7')
+            arctis = re.compile(".*[aA]rctis.*7")
             arctis_sink = list(filter(arctis.match, pactl_short_sinks))[0]
 
             # split the arctis line on tabs (which form table given by 'pactl short sinks')
-            tabs_pattern = re.compile(r'\t')
+            tabs_pattern = re.compile(r"\t")
             tabs_re = re.split(tabs_pattern, arctis_sink)
 
             # skip first element of tabs_re (sink's ID which is not persistent)
             arctis_device = tabs_re[1]
             self.log.info(f"Arctis sink identified as {arctis_device}")
-            default_sink = arctis_device
+            return arctis_device
 
         except Exception:
             self.log.error("""Something wrong with Arctis definition
@@ -118,15 +112,16 @@ class Arctis7PlusChatMix:
             """, exc_info=True)
             self.die_gracefully(trigger="No Arctis device match")
 
-        # Destroy virtual sinks if they already existed incase of previous failure:
-        try:
-            destroy_a7p_game = os.system("pw-cli destroy Arctis_Game 2>/dev/null")
-            destroy_a7p_chat = os.system("pw-cli destroy Arctis_Chat 2>/dev/null")
-            if destroy_a7p_game == 0 or destroy_a7p_chat == 0:
-                raise Exception
-        except Exception:
-            self.log.info("""Attempted to destroy old VAC sinks at init but none existed""")
+    def identify_default_device(self) -> str:
+        # get the default sink id from pactl
+        system_default_sink = os.popen("pactl get-default-sink").read().strip()
+        self.log.info(f"default sink identified as {system_default_sink}")
+        return system_default_sink
 
+    def _init_VAC(self) -> None:
+        """Get name of default sink, establish virtual sink
+        and pipe its output to the default sink
+        """
         # Instantiate our virtual sinks - Arctis_Chat and Arctis_Game
         try:
             self.log.info("Creating VACS...")
@@ -155,23 +150,22 @@ class Arctis7PlusChatMix:
             self.log.error("""Failure to create node adapter -
             Arctis_Chat virtual device could not be created""", exc_info=True)
             self.die_gracefully(trigger="VAC node adapter")
-        self.sinks_created = True
 
         #route the virtual sink's L&R channels to the default system output's LR
         try:
             self.log.info("Assigning VAC sink monitors output to default device...")
 
             os.system(f'pw-link "Arctis_Game:monitor_FL" '
-            f'"{default_sink}:playback_FL" 1>/dev/null')
+            f'"{self.arctis_device}:playback_FL" 1>/dev/null')
 
             os.system(f'pw-link "Arctis_Game:monitor_FR" '
-            f'"{default_sink}:playback_FR" 1>/dev/null')
+            f'"{self.arctis_device}:playback_FR" 1>/dev/null')
 
             os.system(f'pw-link "Arctis_Chat:monitor_FL" '
-            f'"{default_sink}:playback_FL" 1>/dev/null')
+            f'"{self.arctis_device}:playback_FL" 1>/dev/null')
 
             os.system(f'pw-link "Arctis_Chat:monitor_FR" '
-            f'"{default_sink}:playback_FR" 1>/dev/null')
+            f'"{self.arctis_device}:playback_FR" 1>/dev/null')
 
         except Exception:
             self.log.error("""Couldn't create the links to
@@ -179,22 +173,22 @@ class Arctis7PlusChatMix:
             self.die_gracefully(trigger="LR links")
 
         # set the default sink to Arctis Game
-        os.system('pactl set-default-sink Arctis_Game')
+        os.system("pactl set-default-sink Arctis_Game")
 
     def _del_VAC(self) -> None:
-        os.system(f"pactl set-default-sink {self.system_default_sink}")
+        os.system(f"pactl set-default-sink {self.default_sink}")
 
-        if self.sinks_created:
-            self.log.info("Destroying virtual sinks...")
-            os.system("pw-cli destroy Arctis_Game 1>/dev/null")
-            os.system("pw-cli destroy Arctis_Chat 1>/dev/null")
-            self.sinks_created = False
+        self.log.info("Destroying virtual sinks...")
+        rc = 0
+        rc += os.system("pw-cli destroy Arctis_Game 1>/dev/null")
+        rc += os.system("pw-cli destroy Arctis_Chat 1>/dev/null")
+        if rc == 0:
+            self.log.info("""Attempted to destroy old VAC sinks at init but none existed""")
 
-    def start_modulator_signal(self):
+    def start_modulator_signal(self) -> None:
         """Listen to the USB device for modulator knob's signal
         and adjust volume accordingly
         """
-
         self.log.info("Reading modulator USB input started")
         self.log.info("-"*45)
         self.log.info("Arctis Nova 7 ChatMix Enabled!")
@@ -208,12 +202,12 @@ class Arctis7PlusChatMix:
 
                 # 69 is the signal for the chatmix
                 if read_input[0] == 69:
-                    default_device_volume = "{}%".format(read_input[1])
-                    virtual_device_volume = "{}%".format(read_input[2])
+                    default_device_volume = f"{read_input[1]}%"
+                    virtual_device_volume = f"{read_input[2]}%"
 
                     # os.system calls to issue the commands directly to pactl
-                    os.system(f'pactl set-sink-volume Arctis_Game {default_device_volume}')
-                    os.system(f'pactl set-sink-volume Arctis_Chat {virtual_device_volume}')
+                    os.system(f"pactl set-sink-volume Arctis_Game {default_device_volume}")
+                    os.system(f"pactl set-sink-volume Arctis_Chat {virtual_device_volume}")
                 # We have some options here, but 187 seems reasonable
                 elif read_input[0] == 187:
                     if read_input[1] == 3:
@@ -239,8 +233,7 @@ class Arctis7PlusChatMix:
         """Kill the process and remove the VACs
         on fatal exceptions or SIGTERM / SIGINT
         """
-
-        self.log.info('Cleanup on shutdown')
+        self.log.info("Cleanup on shutdown")
 
         self._del_VAC()
 
