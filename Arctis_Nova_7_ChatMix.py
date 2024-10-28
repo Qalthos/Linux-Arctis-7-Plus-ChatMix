@@ -173,6 +173,14 @@ class Arctis7PlusChatMix:
         # set the default sink to Arctis Game
         os.system('pactl set-default-sink Arctis_Game')
 
+    def _del_VAC(self, sink_cleanup=True) -> None:
+        os.system(f"pactl set-default-sink {self.system_default_sink}")
+
+        if sink_cleanup:
+            self.log.info("Destroying virtual sinks...")
+            os.system("pw-cli destroy Arctis_Game 1>/dev/null")
+            os.system("pw-cli destroy Arctis_Chat 1>/dev/null")
+
     def start_modulator_signal(self):
         """Listen to the USB device for modulator knob's signal 
         and adjust volume accordingly
@@ -209,13 +217,8 @@ class Arctis7PlusChatMix:
         """
 
         self.log.info('Cleanup on shutdown')
-        os.system(f"pactl set-default-sink {self.system_default_sink}")
 
-        # cleanup virtual sinks if they exist
-        if  sink_creation_fail is False:
-            self.log.info("Destroying virtual sinks...")
-            os.system("pw-cli destroy Arctis_Game 1>/dev/null")
-            os.system("pw-cli destroy Arctis_Chat 1>/dev/null")
+        self._del_VAC(sink_cleanup=not sink_creation_fail)
 
         if trigger is not None:
             self.log.info("-"*45)
@@ -234,6 +237,6 @@ if __name__ == '__main__':
     try:
         a7pcm_service.start_modulator_signal()
     except KeyboardInterrupt:
-        a7pcm_service.die_gracefully(trigger="keyboard interrupt")
+        a7pcm_service.die_gracefully()
     except Exception as exc:
         a7pcm_service.die_gracefully(trigger=str(exc))
