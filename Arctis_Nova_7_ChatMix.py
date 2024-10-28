@@ -196,12 +196,26 @@ class Arctis7PlusChatMix:
                 # read_input[1] returns value to use for default device volume
                 # read_input[2] returns the value to use for virtual device volume
                 read_input = self.dev.read(self.addr, 64)
-                default_device_volume = "{}%".format(read_input[1])
-                virtual_device_volume = "{}%".format(read_input[2])
 
-                # os.system calls to issue the commands directly to pactl
-                os.system(f'pactl set-sink-volume Arctis_Game {default_device_volume}')
-                os.system(f'pactl set-sink-volume Arctis_Chat {virtual_device_volume}')
+                # 69 is the signal for the chatmix
+                if read_input[0] == 69:
+                    default_device_volume = "{}%".format(read_input[1])
+                    virtual_device_volume = "{}%".format(read_input[2])
+
+                    # os.system calls to issue the commands directly to pactl
+                    os.system(f'pactl set-sink-volume Arctis_Game {default_device_volume}')
+                    os.system(f'pactl set-sink-volume Arctis_Chat {virtual_device_volume}')
+                # We have some options here, but 187 seems reasonable
+                elif read_input[0] == 187:
+                    if read_input[1] == 3:
+                        self._init_VAC()
+                    elif read_input[1] == 0:
+                        self._del_VAC()
+                    else:
+                        self.log.warning(f"Unknown message value {read_input[1]}")
+                else:
+                    self.log.debug(f"Unhandled message {read_input}")
+
             except usb.core.USBTimeoutError:
                 pass
             except usb.core.USBError:
