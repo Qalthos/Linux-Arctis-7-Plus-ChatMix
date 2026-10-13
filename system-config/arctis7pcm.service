@@ -8,7 +8,7 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 %h/.local/bin/Arctis_7_Plus_ChatMix.py
+ExecStart=%h/.local/bin/Arctis_Nova_7_ChatMix.py
 Restart=on-failure
 RestartSec=1
 
